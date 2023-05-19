@@ -20,14 +20,20 @@ def estimate_torch(model, input_imgs, desire, traffic_convention, recurrent_stat
     
     out = model(input_imgs, desire, traffic_convention, recurrent_state).detach().numpy()
 
-    lead_prob = sigmoid(out[:, 6010:6013])
-    x_rel = out[:, 5755:5779:4]
-    y_rel = out[:, 5755+1:5779:4]
-    d_rel = np.sqrt(np.power(x_rel, 2) + np.power(y_rel, 2))
+    lead = out[0, 5755:6010]
+    drel = []
+    for t in range(6):
+        x_predt = lead[4*t::51]
+        if t < 3:
+            prob = lead[48+t::51]
+            current_most_likely_hypo = np.argmax(prob)
+            drelt = x_predt[current_most_likely_hypo]
+        else:
+            drelt = np.mean(x_predt)
+        drel.append(drelt)
 
-    speed = out[:, 5755+2:5779:4]
-
-    return lead_prob, d_rel, speed
+    rec_state = out[:, -512:]
+    return drel, rec_state
 
 def estimate_onnx(model, input_imgs, desire, traffic_convention, recurrent_state):
     out = model.run(['outputs'], {
@@ -38,16 +44,21 @@ def estimate_onnx(model, input_imgs, desire, traffic_convention, recurrent_state
     })
 
     out = np.array(out[0])
-    print(out[:, 5755:])
 
-    lead_prob = sigmoid(out[:, 6010:6013])
-    x_rel = out[:, 5755:5779:4]
-    y_rel = out[:, 5755+1:5779:4]
-    d_rel = np.sqrt(np.power(x_rel, 2) + np.power(y_rel, 2))
+    lead = out[0, 5755:6010]
+    drel = []
+    for t in range(6):
+        x_predt = lead[4*t::51]
+        if t < 3:
+            prob = lead[48+t::51]
+            current_most_likely_hypo = np.argmax(prob)
+            drelt = x_predt[current_most_likely_hypo]
+        else:
+            drelt = np.mean(x_predt)
+        drel.append(drelt)
 
-    speed = out[:, 5755+2:5779:4]
-
-    return lead_prob, d_rel, speed
+    rec_state = out[:, -512:]
+    return drel, rec_state
 
 def parse_image(frame):
 	H = (frame.shape[0]*2)//3
@@ -94,83 +105,88 @@ def load_torch_model():
 
     return model
 
-def run_comparison(img1_path, img2_path, traffic_convention='right', verbose=True):
-    input_imgs, desire, traffic_convention, recurrent_state = prepare_input(img1_path, img2_path, traffic_convention)
+def run_comparison(img1_path, img2_path, traffic_convention='right', verbose=True, rec_states=None):
+    input_imgs, desire, traffic_convention, recurrent_state0 = prepare_input(img1_path, img2_path, traffic_convention)
+    
+    if rec_states is None:
+        torch_rec_state = recurrent_state0
+        onnx_rec_state = recurrent_state0
+    else:
+        torch_rec_state, onnx_rec_state = rec_states
 
 
     torch_model = load_torch_model()
-    torch_lead_prob, torch_d_rel, torch_speed = estimate_torch(torch_model, input_imgs, desire, traffic_convention, recurrent_state)
+    torch_drel, torch_rec_state = estimate_torch(torch_model, input_imgs, desire, traffic_convention, torch_rec_state)
 
     if verbose:
         print('######## PyTorch Output #########')
-        print('Lead vehicle prob:', torch_lead_prob)
-        print('Lead vehicle relative distance (0, 2, 4, 6, 8, 10) s:', torch_d_rel)
-        print('Lead vehicle speed (0, 2, 4, 6, 8, 10) s:', torch_speed)
+        print('Lead vehicle relative distance (0, 2, 4, 6, 8, 10) s:', torch_drel)
         print()
 
     onnx_model = onnxruntime.InferenceSession(r"C:\Users\Max\Documents\UVA Docs\Second Year Classes\Research\ADS\openpilot_model\supercombo_server3.onnx")
-    onnx_lead_prob, onnx_d_rel, onnx_speed = estimate_onnx(onnx_model, input_imgs, desire, traffic_convention, recurrent_state)
+    onnx_drel, onnx_rec_state = estimate_onnx(onnx_model, input_imgs, desire, traffic_convention, onnx_rec_state)
     
     if verbose:
         print('######## ONNX Output #########')
-        print('Lead vehicle prob:', onnx_lead_prob)
-        print('Lead vehicle relative distance (0, 2, 4, 6, 8, 10) s:', onnx_d_rel)
-        print('Lead vehicle speed (0, 2, 4, 6, 8, 10) s:', onnx_speed)
+        print('Lead vehicle relative distance (0, 2, 4, 6, 8, 10) s:', onnx_drel)
         print()
 
-    lead_prob_rmse = np.sqrt(mean_squared_error(torch_lead_prob, onnx_lead_prob))
-    drel_rmse = np.sqrt(mean_squared_error(torch_d_rel, onnx_d_rel))
-    speed_rmse = np.sqrt(mean_squared_error(torch_speed, onnx_speed))
+    drel_rmse = np.sqrt(mean_squared_error(torch_drel, onnx_drel))
 
     if verbose:
-        print('Lead Prob RMSE:', lead_prob_rmse)
         print('dRel RMSE:', drel_rmse)
-        print('Speed RMSE:', speed_rmse)
 
-    return torch_d_rel, onnx_d_rel, drel_rmse
+    rec_states = (torch_rec_state, onnx_rec_state)
+    return torch_drel, onnx_drel, drel_rmse, rec_states
 
-if __name__ == '__main__':
-    img_id = 1
-    # img1_path = f"E:\\golden-left-75m\\golden-left-75m\\imgs\\{img_id}.png"
-    # img2_path = f"E:\\golden-left-75m\\golden-left-75m\\imgs\\{img_id+1}.png"
-    img1_path = '1.png'
-    img2_path = '2.png'
-    run_comparison(img1_path, img2_path, verbose=True)
-
-    # analyze all images
-    # with open('../results/golden-left-75m/image_eval.csv', 'a', newline='') as f:
-    #         writer = csv.writer(f)
-    #         row = ['Image',
-    #                'Torch_dRel0', 'Torch_dRel2', 'Torch_dRel4', 'Torch_dRel6', 'Torch_dRel8', 'Torch_dRel10',
-    #                'ONNX_dRel0', 'ONNX_dRel2', 'ONNX_dRel4', 'ONNX_dRel6', 'ONNX_dRel8', 'ONNX_dRel10', 
-    #                'RMSE']
-    #         writer.writerow(row)
+# analyze all images
+def run_comparison_all():
+    with open('../results/golden-left-75m/image_eval_new.csv', 'a', newline='') as f:
+            writer = csv.writer(f)
+            row = ['Image',
+                   'Torch_dRel0', 'Torch_dRel2', 'Torch_dRel4', 'Torch_dRel6', 'Torch_dRel8', 'Torch_dRel10',
+                   'ONNX_dRel0', 'ONNX_dRel2', 'ONNX_dRel4', 'ONNX_dRel6', 'ONNX_dRel8', 'ONNX_dRel10', 
+                   'RMSE']
+            writer.writerow(row)
         
 
-    # dataset_path = r"E:\golden-left-75m\golden-left-75m\imgs"
-    # paths = [p for p in os.listdir(dataset_path) if p.endswith('.png')]
-    # for i in range(1, len(paths)):
-    #     print(i)
-    #     img1_path = os.path.join(dataset_path, paths[i-1])
-    #     img2_path = os.path.join(dataset_path, paths[i])
+    dataset_path = r"E:\golden-left-75m\golden-left-75m\imgs"
+    paths = [p for p in os.listdir(dataset_path) if p.endswith('.png')]
 
-    #     torch_d_rel, onnx_d_rel, drel_rmse = run_comparison(img1_path, img2_path, traffic_convention='right', verbose=False)
+    rec_states = None
+    for i in range(1, len(paths)):
+        img1_path = os.path.join(dataset_path, paths[i-1])
+        img2_path = os.path.join(dataset_path, paths[i])
 
-    #     with open('../results/golden-left-75m/image_eval.csv', 'a', newline='') as f:
-    #         writer = csv.writer(f)
-    #         row = [i] + list(torch_d_rel[0]) + list(onnx_d_rel[0]) + [drel_rmse]
-    #         writer.writerow(row)
+        torch_d_rel, onnx_d_rel, drel_rmse, rec_states = run_comparison(img1_path, img2_path, traffic_convention='right', verbose=False, rec_states=rec_states)
+        print(i, torch_d_rel[0])
+        # print('\t', rec_states[0].shape)
+        with open('../results/golden-left-75m/image_eval_new.csv', 'a', newline='') as f:
+            writer = csv.writer(f)
+            row = [i] + list(torch_d_rel) + list(onnx_d_rel) + [drel_rmse]
+            writer.writerow(row)
     
+    print('Done!')
 
-    # collect results
-    # results_path = '../results/golden-left-75m/image_eval.csv'
-    # df = pd.read_csv(results_path)
+def collect_results():
+    results_path = '../results/golden-left-75m/image_eval_new.csv'
+    df = pd.read_csv(results_path)
 
-    # for t in range(0, 11, 2):
-    #     error = df['Torch_dRel'+str(t)] - df['ONNX_dRel'+str(t)]
-    #     rmse = np.sqrt(np.mean(error.pow(2)))
-    #     print('dRel RMSE for time {}: {}'.format(t, rmse))
+    for t in range(0, 11, 2):
+        error = df['Torch_dRel'+str(t)] - df['ONNX_dRel'+str(t)]
+        rmse = np.sqrt(np.mean(error.pow(2)))
+        print('dRel RMSE for time {}: {}'.format(t, rmse))
 
-    # rmse = np.mean(df['RMSE'])
-    # print('Overall RMSE:', rmse)
+    rmse = np.mean(df['RMSE'])
+    print('Overall RMSE:', rmse)
 
+if __name__ == '__main__':
+    # img_id = 1
+    # img1_path = f"E:\\golden-left-75m\\golden-left-75m\\imgs\\{img_id}.png"
+    # img2_path = f"E:\\golden-left-75m\\golden-left-75m\\imgs\\{img_id+1}.png"
+    # img1_path = '1.png'
+    # img2_path = '2.png'
+    # run_comparison(img1_path, img2_path, verbose=True)
+    
+    # run_comparison_all()
+    collect_results()

@@ -20,6 +20,10 @@ ONNX_MODEL_PATH = '../models/weights/supercombo_server3.onnx'
 TORCH_WEIGHTS_PATH = '../models/weights/supercombo_torch_weights.pth'
 YOLO_WEIGHTS_PATH = "../models/weights/yolov8n.pt"
 
+CHUNKS_DIRECTORY = '../data/'
+RESULTS_DIRECTORY = 'results/vid_test1/'
+verbose = 0
+
 
 # from DRP-attack repo: https://github.com/ASGuard-UCI/DRP-attack
 class AdamOptTorch:
@@ -427,9 +431,10 @@ def analyze_video(video_path, video_id):
     data['Patch_Height'] = patch_h_hist
     data['Patch_Width'] = patch_w_hist
 
-    for k, v in data.items():
-        print(k, len(v), end=' | ')
-    print()
+    # for k, v in data.items():
+    #     print(k, len(v), end=' | ')
+    # print()
+
     df = pd.DataFrame(data=data)
     global chunk, RESULTS_DIRECTORY
     res_path = os.path.join(RESULTS_DIRECTORY, f'chunk{chunk}/video{video_id}.csv')
@@ -732,10 +737,6 @@ def get_deviation_stats(res_path, blacklist, col_type='optmask'):
         std_dev_by_dist[bounds[i]] = np.std(deviation_within_bounds)
 
     return avg_dev, std_dev, avg_dev_by_dist, std_dev_by_dist
-
-CHUNKS_DIRECTORY = '../data/'
-RESULTS_DIRECTORY = 'results/test1/'
-verbose = 0
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:

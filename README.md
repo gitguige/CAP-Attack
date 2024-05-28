@@ -25,3 +25,8 @@ See `requirements.txt`, or:
 ## Usage
 Once environment is set up, run `python video_eval.py [verbose]`. \
 The `verbose` argument is optional and 0 is minimal output, 1 outputs every 200 frames, and 2 outputs information every frame.
+
+## Reproduction
+
+
+## Acknowledgement

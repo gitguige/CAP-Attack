@@ -4,12 +4,20 @@ import onnxruntime
 import numpy as np
 import cv2
 from sklearn.metrics import mean_squared_error
-from openpilot_torch import OpenPilotModel
+import sys
 import os
 import csv
 import pandas as pd
 from ultralytics import YOLO
 
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'models'))
+from openpilot_torch import OpenPilotModel
+
+RESULTS_PATH = 'results/img_test/image_eval2.csv'
+TORCH_WEIGHTS_PATH = '../models/weights/supercombo_torch_weights.pth'
+ONNX_MODEL_PATH = '../models/weights/supercombo_server3.onnx'
+YOLO_WEIGHTS_PATH = "../models/weights/yolov8n.pt"
+IMGS_DIRECTORY = '../data/imgs/golden-left-75m/'
 
 # from DRP-attack repo: https://github.com/ASGuard-UCI/DRP-attack
 class AdamOptTorch:
@@ -138,10 +146,10 @@ def load_torch_model(path):
 
     return model
 
-def run_comparison(img1_path, img2_path, models, traffic_convention='right', verbose=True, rec_states=None):
-    torch_model_path, onnx_model_path = models
-    torch_model = load_torch_model(torch_model_path)
-    onnx_model = onnxruntime.InferenceSession(onnx_model_path)
+# finds the RMSE between Torch and ONNX model outputs for two given images
+def run_comparison(img1_path, img2_path, traffic_convention='right', verbose=True, rec_states=None):
+    torch_model = load_torch_model(TORCH_WEIGHTS_PATH)
+    onnx_model = onnxruntime.InferenceSession(ONNX_MODEL_PATH)
 
     input_imgs, desire, traffic_convention, recurrent_state0 = prepare_input(img1_path, img2_path, traffic_convention)
     
@@ -212,16 +220,14 @@ def parse_image_multi(frames):
 
     return parsed
 
+# creates and optimizes patch and evaluates its effectiveness, also finds RMSE between models
 def run_patched_comparison(img1_path, img2_path, models, traffic_convention='right', verbose=True, rec_states=None):
     pred_times = [0, 2, 4, 6, 8, 10]
     dim = (512, 256)
     thres = 1
     mask_iterations = 10
 
-    torch_model_path, onnx_model_path = models
-    torch_model = load_torch_model(torch_model_path)
-    onnx_model = onnxruntime.InferenceSession(onnx_model_path)
-    yolo_model = YOLO("yolov8n.pt")
+    torch_model, onnx_model, yolo_model = models
 
     # set up inputs
     desire = np.zeros(shape=(1, 8)).astype('float32')
@@ -281,7 +287,7 @@ def run_patched_comparison(img1_path, img2_path, models, traffic_convention='rig
     torch_init_drel = [v.detach().numpy() for v in torch_init_drel]
     init_drel_rmse = np.sqrt(mean_squared_error(torch_init_drel, onnx_init_drel))
     init_results = (torch_init_drel, onnx_init_drel, init_drel_rmse)
-    print(onnx_init_drel[0], torch_init_drel[0])
+    print('\t Initial relative distance predictions:', onnx_init_drel[0], "(ONNX),", torch_init_drel[0], "(Torch)")
 
     ### optimize patch ###
     for it in range(mask_iterations):
@@ -298,7 +304,7 @@ def run_patched_comparison(img1_path, img2_path, models, traffic_convention='rig
         torch_drel, _ = estimate_torch(torch_model, input_imgs, desire, traffic_convention, torch_rec_state)
 
         if it == 0:
-            print(torch_drel[0])
+            print('\t Relative distance prediction with random patch:', torch_drel[0].detach().numpy())
         
         patch.retain_grad()
         torch_drel[0].backward(retain_graph=True)
@@ -336,15 +342,15 @@ def run_patched_comparison(img1_path, img2_path, models, traffic_convention='rig
     if verbose:
         print('dRel RMSE:', drel_rmse)
 
-    print(torch_drel[0], '| Patch size:', patch_dim)
+    print('\t Relative distance prediction with optimized patch:', torch_drel[0], '| Patch size:', patch_dim)
 
     rec_states = (torch_rec_state.clone().detach(), onnx_rec_state)
     optmask_results = (torch_drel, onnx_drel, drel_rmse)
     return init_results,  optmask_results, rec_states
 
-# analyze all images
+# analyze all images (RMSE only)
 def run_comparison_all():
-    with open('../results/golden-left-75m/image_eval_new.csv', 'a', newline='') as f:
+    with open(RESULTS_PATH, 'a', newline='') as f:
             writer = csv.writer(f)
             row = ['Image',
                    'Torch_dRel0', 'Torch_dRel2', 'Torch_dRel4', 'Torch_dRel6', 'Torch_dRel8', 'Torch_dRel10',
@@ -353,21 +359,17 @@ def run_comparison_all():
             writer.writerow(row)
         
 
-    dataset_path = r"E:\golden-left-75m\golden-left-75m\imgs"
-    paths = [p for p in os.listdir(dataset_path) if p.endswith('.png')]
-
-    # torch_model = load_torch_model()
-    # onnx_model = onnxruntime.InferenceSession(r"C:\Users\Max\Documents\UVA Docs\Second Year Classes\Research\ADS\openpilot_model\supercombo_server3.onnx")
+    paths = [p for p in os.listdir(IMGS_DIRECTORY) if p.endswith('.png')]
 
     rec_states = None
     for i in range(1, len(paths)):
-        img1_path = os.path.join(dataset_path, paths[i-1])
-        img2_path = os.path.join(dataset_path, paths[i])
+        img1_path = os.path.join(IMGS_DIRECTORY, paths[i-1])
+        img2_path = os.path.join(IMGS_DIRECTORY, paths[i])
 
         torch_drel, onnx_drel, drel_rmse, rec_states = run_comparison(img1_path, img2_path, traffic_convention='right', verbose=False, rec_states=rec_states)
         print(i, torch_drel[0])
-        # print('\t', rec_states[0].shape)
-        with open('../results/golden-left-75m/image_eval_new.csv', 'a', newline='') as f:
+        
+        with open(RESULTS_PATH, 'a', newline='') as f:
             writer = csv.writer(f)
             row = [i] + list(torch_drel) + list(onnx_drel) + [drel_rmse]
             writer.writerow(row)
@@ -376,45 +378,36 @@ def run_comparison_all():
 
 
 # analyze all images
-def run_patched_comparison_all(system='linux'):
-    if system == 'linux':
-        result_path = '/home/student/Max/results/CARLA_images/image_eval.csv'
-        torch_model_path = '/home/student/Max/supercombo_torch_weights.pth'
-        onnx_model_path = '/home/student/supercombo_inf/supercombo_server3.onnx'
-        dataset_path = '/home/student/Max/golden-left-75m/imgs'
-    else:
-        result_path = '../results/golden-left-75m/image_eval_new.csv'
-        torch_model_path = r"C:\Users\Max\Documents\UVA Docs\Second Year Classes\Research\ADS\openpilot_model\supercombo_torch_weights.pth"
-        onnx_model_path = r"C:\Users\Max\Documents\UVA Docs\Second Year Classes\Research\ADS\openpilot_model\supercombo_server3.onnx"
-        # dataset_path = r"E:\golden-left-75m\golden-left-75m\imgs"
-        dataset_path = '../dataset/golden-left-75m/imgs'
+def run_patched_comparison_all():
 
-    with open(result_path, 'a', newline='') as f:
+    with open(RESULTS_PATH, 'a', newline='') as f:
             writer = csv.writer(f)
             row = ['Image',
                    'Torch_init_dRel0', 'Torch_init_dRel2', 'Torch_init_dRel4', 'Torch_init_dRel6', 'Torch_init_dRel8', 'Torch_init_dRel10',
                    'Torch_optmask_dRel0', 'Torch_optmask_dRel2', 'Torch_optmask_dRel4', 'Torch_optmask_dRel6', 'Torch_optmask_dRel8', 'Torch_optmask_dRel10',
                    'ONNX_init_dRel0', 'ONNX_init_dRel2', 'ONNX_init_dRel4', 'ONNX_init_dRel6', 'ONNX_init_dRel8', 'ONNX_init_dRel10', 
                    'ONNX_optmask_dRel0', 'ONNX_optmask_dRel2', 'ONNX_optmask_dRel4', 'ONNX_optmask_dRel6', 'ONNX_optmask_dRel8', 'ONNX_optmask_dRel10',
-                   'RMSE_init', 'RMSE_optmask']
+                   'RMSE_init', 'RMSE_optmask', 'optmask_drel_effect']
             writer.writerow(row)
-        
 
-    # torch_model = load_torch_model(torch_model_path)
-    # onnx_model = onnxruntime.InferenceSession(onnx_model_path)
 
-    paths = [p for p in os.listdir(dataset_path) if p.endswith('.png')]
+    torch_model = load_torch_model(TORCH_WEIGHTS_PATH)
+    onnx_model = onnxruntime.InferenceSession(ONNX_MODEL_PATH)
+    yolo_model = YOLO(YOLO_WEIGHTS_PATH)
+    models = (torch_model, onnx_model, yolo_model)
+
+    paths = [p for p in os.listdir(IMGS_DIRECTORY) if p.endswith('.png')]
 
     rec_states = None
     for i in range(1, len(paths)):
-        img1_path = os.path.join(dataset_path, paths[i-1])
-        img2_path = os.path.join(dataset_path, paths[i])
+        img1_path = os.path.join(IMGS_DIRECTORY, paths[i-1])
+        img2_path = os.path.join(IMGS_DIRECTORY, paths[i])
 
-        
+        print(f"Analyzing images {i-1} & {i}")        
         init_results,  optmask_results, rec_states = run_patched_comparison(
             img1_path, 
             img2_path, 
-            models=(torch_model_path, onnx_model_path),
+            models,
             traffic_convention='right', 
             verbose=False, 
             rec_states=rec_states,
@@ -422,18 +415,19 @@ def run_patched_comparison_all(system='linux'):
 
         torch_init_drel, onnx_init_drel, init_drel_rmse = init_results
         torch_optmask_drel, onnx_optmask_drel, opt_drel_rmse = optmask_results
-        print(i)
-        with open(result_path, 'a', newline='') as f:
+
+        optmask_drel_effect = onnx_optmask_drel[0] - onnx_init_drel[0]
+        
+        with open(RESULTS_PATH, 'a', newline='') as f:
             writer = csv.writer(f)
-            row = [i] + list(torch_init_drel) + list(torch_optmask_drel) + list(onnx_init_drel) + list(onnx_optmask_drel) + [init_drel_rmse, opt_drel_rmse]
+            row = [i] + list(torch_init_drel) + list(torch_optmask_drel) + list(onnx_init_drel) + list(onnx_optmask_drel) + [init_drel_rmse, opt_drel_rmse, optmask_drel_effect]
             writer.writerow(row)
     
     print('Done!')
 
 
 def collect_results():
-    results_path = '../results/golden-left-75m/image_eval_new.csv'
-    df = pd.read_csv(results_path)
+    df = pd.read_csv(RESULTS_PATH)
 
     for t in range(0, 11, 2):
         error = df['Torch_dRel'+str(t)] - df['ONNX_dRel'+str(t)]
@@ -458,13 +452,8 @@ def collect_results():
     rmse = np.mean(df['RMSE'])
     print('Overall RMSE:', rmse)
 
-def collect_results_patched(col_type='init', system='linux'):
-    if system == 'linux':
-        results_path = '/home/student/Max/results/CARLA_images/image_eval.csv'
-    else:
-        results_path = '../results/golden-left-75m/image_eval_new.csv'
-
-    df = pd.read_csv(results_path)
+def collect_results_patched(col_type='init'):
+    df = pd.read_csv(RESULTS_PATH)
 
     for t in range(0, 11, 2):
         error = df[f'Torch_{col_type}_dRel{t}'] - df[f'ONNX_{col_type}_dRel{t}']
@@ -489,19 +478,30 @@ def collect_results_patched(col_type='init', system='linux'):
     rmse = np.mean(df[f'RMSE_{col_type}'])
     print('Overall RMSE:', rmse)
 
+    if col_type == 'optmask':
+        avg_optmask_effect = np.mean(df['optmask_drel_effect'])
+        std_optmask_effect = np.std(df['optmask_drel_effect'])
+        print('Optimized patch\'s effect on relative distance:', avg_optmask_effect, '(mean),', std_optmask_effect, '(std)')
+
 if __name__ == '__main__':
-    # img_id = 1
-    # img1_path = f"E:\\golden-left-75m\\golden-left-75m\\imgs\\{img_id}.png"
-    # img2_path = f"E:\\golden-left-75m\\golden-left-75m\\imgs\\{img_id+1}.png"
-    # img1_path = '1.png'
-    # img2_path = '2.png'
-    # run_comparison(img1_path, img2_path, verbose=True)
+    results_dir, file_name = os.path.split(RESULTS_PATH)
+    if not os.path.exists(results_dir):
+        os.mkdir(results_dir)
+
+    i = 1
+    while os.path.exists(RESULTS_PATH):
+        file_name = 'image_eval_' + str(i) + '.csv'
+        RESULTS_PATH = os.path.join(results_dir, file_name)
+        i += 1
     
-    system='linux'
-    # print('Using ' + system + ' file names')
-    # run_patched_comparison_all(system)
+    print('Writing results to:', RESULTS_PATH)
+    f = open(RESULTS_PATH, "x")
+    f.close()
+
+    run_patched_comparison_all()
+
     print('### init results ###')
-    collect_results_patched('init', system)
+    collect_results_patched('init')
     print('### optmask results ###')
-    collect_results_patched('optmask', system)
+    collect_results_patched('optmask')
     

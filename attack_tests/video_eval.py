@@ -431,10 +431,6 @@ def analyze_video(video_path, video_id):
     data['Patch_Height'] = patch_h_hist
     data['Patch_Width'] = patch_w_hist
 
-    # for k, v in data.items():
-    #     print(k, len(v), end=' | ')
-    # print()
-
     df = pd.DataFrame(data=data)
     global chunk, RESULTS_DIRECTORY
     res_path = os.path.join(RESULTS_DIRECTORY, f'chunk{chunk}/video{video_id}.csv')
@@ -795,7 +791,6 @@ if __name__ == '__main__':
 
     ### collect results and produce metrics ###
     results_path = os.path.join(RESULTS_DIRECTORY, f'chunk{chunk}')
-    # res = collect_results_patched(results_path, result_blacklist, name_filter='')
 
     for i in range(3):
         if i == 0:

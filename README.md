@@ -34,15 +34,15 @@ Once each video has been processed by evaluation script, average and standard de
 The metrics for the sample video data provided are shown below as an example:
 ```
 ### Optimized Patch ###
-Overall Deviation: 11.651084180493696 (avg), 22.63484539593186 (std)
-Deviation by lead vehicle distance:
+Overall Deviation (m): 11.651084180493696 (avg), 22.63484539593186 (std)
+Deviation by lead vehicle distance (m):
 	[0, 20] : 38.077363943039266 (avg), 36.5776798438628, (std)
 	[20, 40] : 8.90427834476004 (avg), 15.494763443442293, (std)
 	[40, 60] : 8.387780854389723 (avg), 10.33718476335239, (std)
 	[60, 80] : 8.560524510934393 (avg), 7.54147929244774, (std)
 	[80, 999] : 2.9439739990198 (avg), 4.462562408293018, (std)
 RMSE between Torch and ONNX models (overall): 6.267276713996245e-05
-RMSE between Torch and ONNX models by lead vehicle distance:
+RMSE between Torch and ONNX models by lead vehicle distance (m):
 	[0, 20] : 3.444669775334201e-06
 	[20, 40] : 1.0093929693984696e-05
 	[40, 60] : 1.4237172101399019e-05
@@ -50,15 +50,15 @@ RMSE between Torch and ONNX models by lead vehicle distance:
 	[80, 999] : 5.6781725346623996e-05
 
 ### Random Patch ###
-Overall Deviation: 0.13332046169117656 (avg), 2.371943395012448 (std)
-Deviation by lead vehicle distance:
+Overall Deviation (m): 0.13332046169117656 (avg), 2.371943395012448 (std)
+Deviation by lead vehicle distance (m):
 	[0, 20] : 0.27180057363590004 (avg), 0.7007840254954648, (std)
 	[20, 40] : 0.00575331145935357 (avg), 1.1948013612539026, (std)
 	[40, 60] : 0.024331187794432645 (avg), 3.6437793782895658, (std)
 	[60, 80] : 0.11969888071570547 (avg), 2.2539416298471244, (std)
 	[80, 999] : 0.1269166581062539 (avg), 2.6609427543599202, (std)
-RMSE between Torch and ONNX models (oveall): 8.577053003752715e-05
-RMSE between Torch and ONNX models by lead vehicle distance:
+RMSE between Torch and ONNX models (overall): 8.577053003752715e-05
+RMSE between Torch and ONNX models by lead vehicle distance (m):
 	[0, 20] : 1.5550596991929194e-05
 	[20, 40] : 2.5682208768365973e-05
 	[40, 60] : 3.455029405728363e-05
@@ -66,15 +66,15 @@ RMSE between Torch and ONNX models by lead vehicle distance:
 	[80, 999] : 6.130016845637277e-05
 
 ### FGSM Patch ###
-Overall Deviation: 5.783177634569328 (avg), 12.93259418383814 (std)
-Deviation by lead vehicle distance:
+Overall Deviation (m): 5.783177634569328 (avg), 12.93259418383814 (std)
+Deviation by lead vehicle distance (m):
 	[0, 20] : 18.78040350591535 (avg), 22.271215346020853, (std)
 	[20, 40] : 4.305470687561215 (avg), 9.907001096854028, (std)
 	[40, 60] : 3.914400123126338 (avg), 6.109941352896786, (std)
 	[60, 80] : 4.629465332007952 (avg), 4.521511241296334, (std)
 	[80, 999] : 1.5383108129778476 (avg), 2.965716815064241, (std)
-RMSE between Torch and ONNX models (oveall): 7.41199034242355e-05
-RMSE between Torch and ONNX models by lead vehicle distance:
+RMSE between Torch and ONNX models (overall): 7.41199034242355e-05
+RMSE between Torch and ONNX models by lead vehicle distance (m):
 	[0, 20] : 5.178341554007147e-06
 	[20, 40] : 1.4959489277539826e-05
 	[40, 60] : 2.1295267145026002e-05
@@ -83,7 +83,7 @@ RMSE between Torch and ONNX models by lead vehicle distance:
 
 ### No Patch ###
 RMSE between Torch and ONNX models (overall): 8.34061235137384e-05
-RMSE between Torch and ONNX models by lead vehicle distance:
+RMSE between Torch and ONNX models by lead vehicle distance (m):
 	[0, 20] : 1.5340457384900803e-05
 	[20, 40] : 2.467602975449311e-05
 	[40, 60] : 3.406872547595069e-05

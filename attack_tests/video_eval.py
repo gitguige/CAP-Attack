@@ -812,8 +812,8 @@ if __name__ == '__main__':
         
         avg_dev, std_dev, avg_dev_by_dist, std_dev_by_dist = get_deviation_stats(results_path, result_blacklist, col_type=pt)
 
-        print(f'Overall Deviation: {avg_dev} (avg), {std_dev} (std)')
-        print('Deviation by lead vehicle distance:')
+        print(f'Overall Deviation (m): {avg_dev} (avg), {std_dev} (std)')
+        print('Deviation by lead vehicle distance (m):')
 
         bounds = [0, 20, 40, 60, 80, 999]
         # bounds = [0, 5, 10, 15, 20, 40, 60, 80, 999]
@@ -822,7 +822,7 @@ if __name__ == '__main__':
 
         rmse, indiv_rmse, dist_rmse = collect_results_rmse(results_path, name_filter='', patch_type=pt)
         print('RMSE between Torch and ONNX models (overall):', rmse)
-        print('RMSE between Torch and ONNX models by lead vehicle distance:')
+        print('RMSE between Torch and ONNX models by lead vehicle distance (m):')
         
         for i in range(1, len(bounds)):
             print(f"\t[{bounds[i-1]}, {bounds[i]}] : {dist_rmse[bounds[i]]}")
@@ -832,7 +832,7 @@ if __name__ == '__main__':
     print('### No Patch ###')
     rmse, indiv_rmse, dist_rmse = collect_results_rmse(results_path, name_filter='', patch_type='init')
     print('RMSE between Torch and ONNX models (overall):', rmse)
-    print('RMSE between Torch and ONNX models by lead vehicle distance:')
+    print('RMSE between Torch and ONNX models by lead vehicle distance (m):')
     
     for i in range(1, len(bounds)):
         print(f"\t[{bounds[i-1]}, {bounds[i]}] : {dist_rmse[bounds[i]]}")

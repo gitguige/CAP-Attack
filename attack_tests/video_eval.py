@@ -26,6 +26,7 @@ verbose = 0
 
 
 # from DRP-attack repo: https://github.com/ASGuard-UCI/DRP-attack
+# used for patch optimization
 class AdamOptTorch:
 
     def __init__(self, size, lr=1e-3, beta1=0.9, beta2=0.999, eps=1e-8, dtype=torch.float32):
@@ -56,6 +57,8 @@ class AdamOptTorch:
 def sigmoid(x):
 	return 1 / (1 + np.exp(-x))
 
+# pass inputs through PyTorch version of supercombo model, returns relative distance
+# predictions for all time horizons and updated recurrent state
 def estimate_torch(model, input_imgs, desire, traffic_convention, recurrent_state):
     if not isinstance(input_imgs, torch.Tensor):
         input_imgs = torch.tensor(input_imgs).float()
@@ -82,6 +85,8 @@ def estimate_torch(model, input_imgs, desire, traffic_convention, recurrent_stat
     rec_state = out[:, -512:]
     return drel, rec_state
 
+# pass inputs through ONNX version of supercombo model, returns relative distance
+# predictions for all time horizons and updated recurrent state
 def estimate_onnx(model, input_imgs, desire, traffic_convention, recurrent_state):
     out = model.run(['outputs'], {
         'input_imgs': input_imgs,
@@ -112,7 +117,7 @@ def estimate_onnx(model, input_imgs, desire, traffic_convention, recurrent_state
     rec_state = out[:, -512:]
     return drel, rec_state
 
-
+# prases single YUV image into format expected by supercombo model
 def parse_image(frame):
 	H = (frame.shape[0]*2)//3
 	W = frame.shape[1]
@@ -127,6 +132,7 @@ def parse_image(frame):
 
 	return parsed
 
+# parses two YUV images into the format expected by supercombo model
 def parse_image_multi(frames):
     n = frames.shape[0] # should always be 2
     H = (frames.shape[1]*2)//3 # 128
@@ -144,6 +150,7 @@ def parse_image_multi(frames):
 
     return parsed
 
+# loads PyTorch version of OpenPilot's supercombo model
 def load_torch_model():
     model = OpenPilotModel()
     model.load_state_dict(torch.load(TORCH_WEIGHTS_PATH))
@@ -154,7 +161,7 @@ def load_torch_model():
 def dist(x, y):
     return torch.cdist(x, y, p=2.0)
 
-
+# creates a random patch in the Y channel of a YUV image
 def build_yuv_patch(thres, patch_dim, patch_start):
     patch_height, patch_width = patch_dim
     patch_y, patch_x = patch_start # top-left is (0, 0) horizontal is x, vertical is y
@@ -167,7 +174,6 @@ def build_yuv_patch(thres, patch_dim, patch_start):
     y_patch_w_start = int(patch_x*w_ratio)
 
     y_patch = thres * np.random.rand(y_patch_height, y_patch_width).astype('float32')
-    # u_patch = thres * np.random.rand()
     h_bounds = (y_patch_h_start, y_patch_h_start+y_patch_height)
     w_bounds = (y_patch_w_start, y_patch_w_start+y_patch_width)
     return y_patch, h_bounds, w_bounds
@@ -600,7 +606,8 @@ def collect_results_rmse(res_path, name_filter='', patch_type='init'):
 
     return rmse, indiv_rmse, dist_rmse
 
-
+# replaced by get_deviation_stats()
+# collects statistics on lead car relative distance prediciton with and without adversarial patch 
 def collect_results_patched(res_path, blacklist, name_filter=''):
     pred_times = [0, 2, 4, 6, 8, 10]
     
@@ -814,7 +821,7 @@ if __name__ == '__main__':
             print(f"\t[{bounds[i-1]}, {bounds[i]}] : {avg_dev_by_dist[bounds[i]]} (avg), {std_dev_by_dist[bounds[i]]}, (std)")
 
         rmse, indiv_rmse, dist_rmse = collect_results_rmse(results_path, name_filter='', patch_type=pt)
-        print('RMSE between Torch and ONNX models (oveall):', rmse)
+        print('RMSE between Torch and ONNX models (overall):', rmse)
         print('RMSE between Torch and ONNX models by lead vehicle distance:')
         
         for i in range(1, len(bounds)):

@@ -1,8 +1,19 @@
 # CAP-Attack
-This repository contains source code to demonstrate the effectiveness of CAP-Attack, a Context-Aware Perception Attack that stealthily undermines DNN-based Adaptive Cruise Control (ACC) systems. This work was propsed in the paper *"Runtime Stealthy Perception Attacks against DNN-based Adaptive Cruise Control Systems"* by Xugui Zhou*, Anqi Chen&dagger;, Maxfield Kouzel*, Hoatian Ren*, Morgan McCarty&dagger;, Christina Nita-Rotaru&dagger;, and Homa Alemzadeh*. CAP-Attack uses a novel optimization-based approach and adaptive algorithm to generate an adversarial patch for input camera frames at runtime. The addition of the adversarial patch to input frames fools the DNN model in the ACC system and causes unsafe acceleration to occur before detection and migitation by the driver or safety mechanisms. The code contained here performs the attack offline on precollected dashcam videos or images to illustrate adversarial patch generation and application.
+This repository contains source code to demonstrate the effectiveness of CAP-Attack, a Context-Aware Perception Attack that stealthily undermines DNN-based Adaptive Cruise Control (ACC) systems. This work was propsed in the paper *"Runtime Stealthy Perception Attacks against DNN-based Adaptive Cruise Control Systems"* by Xugui Zhou et al. CAP-Attack uses a novel optimization-based approach and adaptive algorithm to generate an adversarial patch for input camera frames at runtime. The addition of the adversarial patch to input frames fools the DNN model in the ACC system and causes unsafe acceleration to occur before detection and migitation by the driver or safety mechanisms. The code contained here performs the attack offline on precollected dashcam videos or images to illustrate adversarial patch generation and application.
 
-\* *University of Virginia* \
-&dagger; *Northeastern University*
+
+HOT TO CITE:
+
+X. Zhou, A. Chen, Ma. Kouzel, H. Ren, M. McCarty, C. Nita-Rotaru, and H. Alemzadeh, "Runtime Stealthy Perception Attacks against DNN-based Adaptive Cruise Control Systems," in ACM Asia Conference on Computer and Communications Security (ASIA CCS ’25), 2025.
+
+```
+@inproceedings{zhou2025runtime,
+  title={Runtime Stealthy Perception Attacks against DNN-based Adaptive Cruise Control Systems},
+  author={Zhou, Xugui and Chen, Anqi and Kouzel, Maxfield and Ren, Haotian and McCarty, Morgan and Nita-Rotaru, Cristina and Alemzadeh, Homa},
+  booktitle={20th ACM ASIA Conference on Computer and Communications Security (AsiaCCS)},
+  year={2025}
+}
+```
 
 ## Requirements
 See `requirements.txt`, or:
